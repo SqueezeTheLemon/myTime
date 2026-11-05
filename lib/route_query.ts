@@ -1,5 +1,5 @@
-// 🚪 /api/routes 로 들어온 주소창 값(쿼리)을 검사하고 숫자로 바꿔요
-// 💡 Request를 몰라도 되는 순수 함수라서 테스트하기 쉬워요
+// 주소창의 값을 검사하고 -> 숫자로 바꾼다. 
+
 import { EpochSeconds } from "./core_engine";
 
 export interface Point {
@@ -17,14 +17,13 @@ export type ParseResult =
     | { ok: true; query: RouteQuery }
     | { ok: false; message: string };
 
-// 서울 근처만 받아요 (대충 넉넉하게 잡은 네모)
+// 서울 근처만 입력을 받는다. 
 const SEOUL = { minX: 126.7, maxX: 127.3, minY: 37.4, maxY: 37.75 };
 
 function inSeoul(p: Point): boolean {
     return p.x >= SEOUL.minX && p.x <= SEOUL.maxX && p.y >= SEOUL.minY && p.y <= SEOUL.maxY;
 }
 
-// 💡 Number("")는 0, Number(null)도 0이 돼서 위험해요. 빈 값은 먼저 걸러요
 function toNumber(value: string | null): number | null {
     if (value === null || value.trim() === "") return null;
     const n = Number(value);

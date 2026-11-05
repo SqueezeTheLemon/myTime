@@ -1,5 +1,5 @@
-// 🛣️ GET /api/routes?sx=..&sy=..&ex=..&ey=..&deadline=..
 // 쿼리 검사 → 카카오 호출 → TotalRoute로 변환 → 엔진(makeList) → FinalResult 응답
+
 import { makeList } from "../../../lib/core_engine";
 import { kakaoToTotalRoutes } from "../../../lib/kakao_convert";
 import { fetchKakaoTransit } from "../../../lib/kakao_client";

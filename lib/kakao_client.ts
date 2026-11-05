@@ -1,5 +1,5 @@
-// 📞 카카오 대중교통 API를 실제로 부르는 곳이에요 (서버에서만 써요!)
-// 💡 실패를 throw하지 않고 "결과 상자"로 돌려줘요 → 부르는 쪽에서 if 하나로 갈라 쓰기 쉬워요
+
+// 카카오 대중교통 API를 실제로 부르고, 실패 이유를 분류한다. 
 import { KakaoResponse } from "./kakao_types";
 import { Point } from "./route_query";
 
