@@ -2,11 +2,12 @@
 // 🧭 2. 경로 목록 화면. 주소창 값 → /api/routes 호출 → 카드 목록
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { FinalResult } from "../../lib/engine/core_engine";
 import { formatClock, formatDuration, formatRemaining } from "../../lib/ui/format";
 import { useNow } from "../_components/use_now";
 import { BackIcon } from "../_components/icons";
+import { saveGuide } from "../guide/guide_store";
 import RouteCard from "./RouteCard";
 
 const RETRY_LATER = "잠시 후 다시 시도해 주세요";
@@ -27,11 +28,20 @@ export default function RoutesView() {
             apiQuery={apiQuery}
             destName={params.get("dest") || "도착지"}
             deadline={Number(params.get("deadline"))}
+            listQuery={params.toString()}
         />
     );
 }
 
-function RoutesScreen({ apiQuery, destName, deadline }: { apiQuery: string; destName: string; deadline: number }) {
+interface ScreenProps {
+    apiQuery: string;
+    destName: string;
+    deadline: number;
+    listQuery: string; // dest까지 포함한 지금 주소창 값 (안내 화면에서 "다른 경로 보기"로 돌아올 때)
+}
+
+function RoutesScreen({ apiQuery, destName, deadline, listQuery }: ScreenProps) {
+    const router = useRouter();
     const now = useNow();
     const [load, setLoad] = useState<Load>({ status: "loading" });
     const [attempt, setAttempt] = useState(0); // "다시 시도"를 누르면 1 올려서 effect를 다시 돌려요
@@ -60,6 +70,14 @@ function RoutesScreen({ apiQuery, destName, deadline }: { apiQuery: string; dest
     };
 
     const options = load.status === "done" && load.result.ok ? load.result.options : null;
+
+    // 💡 고른 경로를 sessionStorage에 두고 안내 화면으로 가요. API를 다시 부르지 않아도 돼요.
+    const startGuide = () => {
+        const option = options?.[selected];
+        if (!option) return;
+        saveGuide({ option, deadline, destName, routesQuery: listQuery });
+        router.push("/guide");
+    };
 
     return (
         <>
@@ -145,8 +163,8 @@ function RoutesScreen({ apiQuery, destName, deadline }: { apiQuery: string; dest
                 <div className="sticky bottom-0 mt-auto bg-surface pt-2 pb-5">
                     <button
                         type="button"
-                        disabled
-                        title="단계별 안내 화면은 4단계에서 연결해요"
+                        disabled={!options}
+                        onClick={startGuide}
                         className="min-h-[54px] w-full rounded-card bg-brand text-base font-bold text-white disabled:opacity-50"
                     >
                         이 경로로 안내 시작
