@@ -43,7 +43,7 @@ export async function GET(request: Request) {
         return fail(400, status.toLowerCase(), message);
     }
 
-    // 4) 변환 → 엔진.
-    const routes = kakaoToTotalRoutes(kakao.data, now);
+    // 4) 변환 → 엔진. 출발지·목적지를 같이 넘겨야 처음·마지막 도보가 붙어요
+    const routes = kakaoToTotalRoutes(kakao.data, now, { start, end });
     return Response.json(makeList(now, deadline, routes));
 }
