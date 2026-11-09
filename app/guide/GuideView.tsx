@@ -5,11 +5,13 @@ import { useState } from "react";
 import Link from "next/link";
 import type { EpochSeconds } from "../../lib/engine/core_engine";
 import { formatClock, shortClock } from "../../lib/ui/format";
+import type { RecalcReason } from "../../lib/ui/result";
 import { GuideSession, pendingTime, remainingMinutes, stepGuide, stepLabel } from "../../lib/ui/guide";
 import { useNow } from "../_components/use_now";
 import { setGuideStep, useGuideSession } from "./guide_store";
 import AllowanceBadge from "./AllowanceBadge";
 import GuideMap from "./GuideMap";
+import Arrived from "./Arrived";
 import ProblemSheet from "./ProblemSheet";
 
 export default function GuideView() {
@@ -20,7 +22,7 @@ export default function GuideView() {
 
     if (session === undefined) return null; // 저장소를 읽기 전 (아주 잠깐)
     if (session === null) return <NoRoute />;
-    if (session.step >= session.option.route.length) return <Finished session={session} />;
+    if (session.step >= session.option.route.length) return <Arrived session={session} />;
 
     const next = () => setGuideStep(session, session.step + 1);
     const actions = { onNext: next, onProblem: () => setProblemOpen(true) };
@@ -33,7 +35,12 @@ export default function GuideView() {
                 <StepsScreen session={session} now={now} onShowMap={() => setView("map")} {...actions} />
             )}
             {problemOpen && (
-                <ProblemSheet label={stepLabel(session.option.route, session.step, session.destName)} onClose={() => setProblemOpen(false)} />
+                <ProblemSheet
+                    label={stepLabel(session.option.route, session.step, session.destName)}
+                    defaultReason={guessReason(session)}
+                    routesQuery={session.routesQuery}
+                    onClose={() => setProblemOpen(false)}
+                />
             )}
         </>
     );
@@ -160,24 +167,11 @@ function NoRoute() {
     );
 }
 
-// 마지막 단계까지 완료했을 때 — 임시 화면이에요. 5단계 "도착" 화면(목업 Arrived)으로 바꿀 자리
-function Finished({ session }: { session: GuideSession }) {
-    return (
-        <div className="flex flex-1 flex-col justify-center gap-4 px-4">
-            <p className="text-[28px] leading-[1.3] font-black">{session.destName}에 도착했어요 🎉</p>
-            <p className="text-[15px] text-on-ink-muted">목표 도착 시각은 {formatClock(session.deadline)}이었어요.</p>
-            <div className="flex flex-col gap-2.5">
-                <Link href="/" className="flex min-h-[54px] items-center justify-center rounded-card bg-brand text-base font-bold text-white">
-                    처음으로
-                </Link>
-                <button
-                    type="button"
-                    onClick={() => setGuideStep(session, session.option.route.length - 1)}
-                    className="min-h-[52px] rounded-option border border-on-ink-outline text-[15px] text-white"
-                >
-                    마지막 단계로 돌아가기
-                </button>
-            </div>
-        </div>
-    );
+// 문제 시트에서 미리 골라 둘 이유: 지금(또는 곧) 탈 차가 버스면 "버스를 놓쳤어요", 지하철이면 "지하철을 놓쳤어요"
+function guessReason({ option, step }: GuideSession): RecalcReason {
+    const seg = option.route[step];
+    const vehicle = seg.type === "walk" ? option.route[step + 1] : seg;
+    if (vehicle?.type === "bus") return "missed-bus";
+    if (vehicle?.type === "subway") return "missed-subway";
+    return "wrong-way";
 }

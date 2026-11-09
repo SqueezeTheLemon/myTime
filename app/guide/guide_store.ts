@@ -35,12 +35,17 @@ function write(value: GuideSession) {
     listeners.forEach((fn) => fn());
 }
 
-export function saveGuide(session: Omit<GuideSession, "version" | "step">) {
-    write({ ...session, version: 1, step: 0 });
+// 💡 둘 다 버튼을 누를 때(이벤트 핸들러)만 불러요. 그래서 여기서 Date.now()를 써도 렌더가 흔들리지 않아요.
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+export function saveGuide(session: Omit<GuideSession, "version" | "step" | "startedAt" | "arrivedAt">) {
+    write({ ...session, version: 1, step: 0, startedAt: nowSeconds() });
 }
 
+// 마지막 단계를 넘기면 그 순간을 도착 시각으로 적고, 되돌아가면 지워요
 export function setGuideStep(session: GuideSession, step: number) {
-    write({ ...session, step });
+    const finished = step >= session.option.route.length;
+    write({ ...session, step, arrivedAt: finished ? nowSeconds() : undefined });
 }
 
 // undefined = 아직 못 읽음(서버), null = 저장된 경로 없음

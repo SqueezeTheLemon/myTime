@@ -12,6 +12,8 @@ export interface GuideSession {
     destName: string;
     routesQuery: string; // "다른 경로 보기"로 목록에 돌아갈 때 쓰는 주소창 값
     step: number; // 지금 몇 번째 구간인지 (route.length면 안내 끝)
+    startedAt?: EpochSeconds; // "안내 시작"을 누른 시각 (도착 화면의 총 이동 시간)
+    arrivedAt?: EpochSeconds; // "안내 끝내기"를 누른 시각 (도착 화면의 도착 시각)
 }
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -48,7 +50,13 @@ export function parseGuideSession(raw: string | null): GuideSession | null {
     if (!isNum(s.deadline) || typeof s.destName !== "string" || typeof s.routesQuery !== "string") return null;
 
     const step = isNum(s.step) ? Math.min(Math.max(0, Math.floor(s.step)), option.route.length) : 0;
-    return { ...(s as unknown as GuideSession), step };
+    // 💡 시각 두 개는 없어도 되는 값이라, 숫자가 아니면 버리기만 해요
+    return {
+        ...(s as unknown as GuideSession),
+        step,
+        startedAt: isNum(s.startedAt) ? s.startedAt : undefined,
+        arrivedAt: isNum(s.arrivedAt) ? s.arrivedAt : undefined,
+    };
 }
 
 // ───────── 한국어 조사 ─────────

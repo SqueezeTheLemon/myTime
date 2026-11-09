@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { FinalResult } from "../../lib/engine/core_engine";
-import { formatClock, formatDuration, formatRemaining } from "../../lib/ui/format";
+import { formatClock, formatRemaining } from "../../lib/ui/format";
+import { recalcBanner } from "../../lib/ui/result";
 import { useNow } from "../_components/use_now";
 import { BackIcon } from "../_components/icons";
 import { saveGuide } from "../guide/guide_store";
+import LateView from "./LateView";
 import RouteCard from "./RouteCard";
 
 const RETRY_LATER = "잠시 후 다시 시도해 주세요";
@@ -19,16 +21,18 @@ type Load =
     | { status: "done"; result: FinalResult };
 
 // 💡 주소창이 바뀌면 key가 바뀌어서 화면 상태(선택, 로딩)가 깨끗하게 새로 시작돼요
+//    같은 자리에서 두 번 다시 계산해도 새로 불러오도록 at(다시 계산한 시각)도 key에 넣어요
 export default function RoutesView() {
     const params = useSearchParams();
     const apiQuery = new URLSearchParams(API_KEYS.map((k) => [k, params.get(k) ?? ""])).toString();
     return (
         <RoutesScreen
-            key={apiQuery}
+            key={`${apiQuery}&at=${params.get("at") ?? ""}`}
             apiQuery={apiQuery}
             destName={params.get("dest") || "도착지"}
             deadline={Number(params.get("deadline"))}
             listQuery={params.toString()}
+            banner={recalcBanner(params.get("reason"), params.get("at"))}
         />
     );
 }
@@ -38,9 +42,10 @@ interface ScreenProps {
     destName: string;
     deadline: number;
     listQuery: string; // dest까지 포함한 지금 주소창 값 (안내 화면에서 "다른 경로 보기"로 돌아올 때)
+    banner: string | null; // 다시 계산했을 때 지도 위 띠 문구
 }
 
-function RoutesScreen({ apiQuery, destName, deadline, listQuery }: ScreenProps) {
+function RoutesScreen({ apiQuery, destName, deadline, listQuery, banner }: ScreenProps) {
     const router = useRouter();
     const now = useNow();
     const [load, setLoad] = useState<Load>({ status: "loading" });
@@ -79,6 +84,11 @@ function RoutesScreen({ apiQuery, destName, deadline, listQuery }: ScreenProps) 
         router.push("/guide");
     };
 
+    // 제시간에 갈 경로가 없으면 목록 대신 "제시간 도착 불가" 화면
+    if (load.status === "done" && !load.result.ok) {
+        return <LateView fastestArrivalAt={load.result.fastestArrivalAt} lateBy={load.result.lateBy} />;
+    }
+
     return (
         <>
             {/* 지도 자리 (7단계에서 진짜 지도로 바꿔요) */}
@@ -96,6 +106,16 @@ function RoutesScreen({ apiQuery, destName, deadline, listQuery }: ScreenProps) 
                         <span className="truncate text-base font-bold">{destName}</span>
                     </div>
                 </div>
+                {banner && (
+                    // 다시 계산했을 때만 보이는 띠 (목업 Routes-3-crg7)
+                    <p className="absolute top-[100px] left-4 flex max-w-[calc(100%-2rem)] items-center gap-1.5 rounded-full bg-ink py-1.5 pr-3 pl-2.5 text-[13px] font-bold text-white shadow-[0_2px_8px_rgba(18,32,47,0.12)]">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0 stroke-accent" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+                            <path d="M20 4v7h-7" />
+                        </svg>
+                        {banner}
+                    </p>
+                )}
             </div>
 
             {/* 아래 시트 */}
@@ -128,21 +148,6 @@ function RoutesScreen({ apiQuery, destName, deadline, listQuery }: ScreenProps) 
                                 처음으로
                             </Link>
                         </div>
-                    </section>
-                )}
-
-                {load.status === "done" && !load.result.ok && (
-                    // 임시 화면이에요. 5단계 "제시간 도착 불가" 화면으로 바꿀 자리
-                    <section className="flex flex-col gap-2 rounded-card border-2 border-dashed border-border bg-late-bg px-4 py-4">
-                        <p className="text-lg font-black">제시간에 도착하는 경로가 없어요</p>
-                        <p className="text-[15px] text-muted">
-                            {load.result.fastestArrivalAt !== null && load.result.lateBy !== null
-                                ? `가장 빨리 가도 ${formatClock(load.result.fastestArrivalAt)} 도착, ${formatDuration(load.result.lateBy)} 늦어요.`
-                                : "지금 탈 수 있는 경로를 찾지 못했어요."}
-                        </p>
-                        <Link href="/" className="mt-1 text-sm font-bold text-brand">
-                            데드라인 다시 정하기
-                        </Link>
                     </section>
                 )}
 
