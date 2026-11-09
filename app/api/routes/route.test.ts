@@ -94,6 +94,6 @@ describe("GET /api/routes", () => {
         const res = await call(goodQuery);
 
         expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ ok: false, fastestArrivalAt: null, lateBy: null });
+        expect(await res.json()).toEqual({ ok: false, fastestArrivalAt: null, lateBy: null, fastestOption: null });
     });
 });

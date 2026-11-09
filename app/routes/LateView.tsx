@@ -2,16 +2,23 @@
 // ⏰ 제시간 도착 불가 (목업 Late). 경로 목록 대신 이 화면을 보여줘요.
 import { useState } from "react";
 import Link from "next/link";
-import type { EpochSeconds, Seconds } from "../../lib/engine/core_engine";
+import { useRouter } from "next/navigation";
+import type { EpochSeconds, RouteOption, Seconds } from "../../lib/engine/core_engine";
 import { formatClock } from "../../lib/ui/format";
 import { lateMessage, lateMinutes } from "../../lib/ui/result";
+import { saveGuide } from "../guide/guide_store";
 
 interface Props {
     fastestArrivalAt: EpochSeconds | null;
     lateBy: Seconds | null;
+    fastestOption: RouteOption | null; // 늦더라도 이 경로로 안내를 이어갈 수 있어요
+    deadline: EpochSeconds;
+    destName: string;
+    listQuery: string; // 안내 화면의 "다른 경로 보기"·다시 계산이 돌아올 주소
 }
 
-export default function LateView({ fastestArrivalAt, lateBy }: Props) {
+export default function LateView({ fastestArrivalAt, lateBy, fastestOption, deadline, destName, listQuery }: Props) {
+    const router = useRouter();
     const known = fastestArrivalAt !== null && lateBy !== null;
     const [text, setText] = useState(() => (known ? lateMessage(fastestArrivalAt, lateBy) : ""));
     const [copy, setCopy] = useState<"idle" | "done" | "fail">("idle");
@@ -23,6 +30,13 @@ export default function LateView({ fastestArrivalAt, lateBy }: Props) {
         } catch {
             setCopy("fail"); // http 주소나 권한 문제로 막힐 수 있어요
         }
+    };
+
+    // 💡 목록의 "안내 시작"과 같은 길이에요. 늦는 경로라도 배지는 "N분 늦음"으로 보여요.
+    const continueGuide = () => {
+        if (!fastestOption) return;
+        saveGuide({ option: fastestOption, deadline, destName, routesQuery: listQuery });
+        router.push("/guide");
     };
 
     return (
@@ -70,7 +84,15 @@ export default function LateView({ fastestArrivalAt, lateBy }: Props) {
                         {copy === "done" ? "복사했어요 ✓" : "메시지 복사하기"}
                     </button>
                 )}
-                {/* 💡 "가장 빠른 경로로 계속 안내"는 서버가 그 경로를 같이 줘야 해서, 백엔드 작업 뒤에 붙여요 */}
+                {fastestOption && (
+                    <button
+                        type="button"
+                        onClick={continueGuide}
+                        className="flex min-h-[50px] items-center justify-center rounded-card border border-brand bg-card text-[15px] font-bold text-brand"
+                    >
+                        가장 빠른 경로로 계속 안내
+                    </button>
+                )}
                 <Link
                     href="/"
                     className="flex min-h-[50px] items-center justify-center rounded-card border border-border bg-card text-[15px] font-medium text-ink"

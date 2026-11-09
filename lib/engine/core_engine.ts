@@ -72,7 +72,7 @@ export type FinalResult=
         ok:false; // 제시간 도착 불가 화면
         fastestArrivalAt : EpochSeconds | null; // 가장 빨리 도착하는 시각 
         lateBy: Seconds | null; // 그때 데드라인보다 몇초 늦는지 
-
+        fastestOption : RouteOption | null; // 늦더라도 이 경로로 안내를 이어갈 수 있음 
     }
 
 
@@ -149,7 +149,7 @@ export function evaluateArrival(arrive : ArrivalEstimate): EvaluateResult | null
     const MAX_AHEAD = 60;
 
     if(arrive.ok){
-        let allowTime = arrive.slack; 
+        const allowTime = arrive.slack; 
 
         if(allowTime >= MAX_AHEAD)  return {evaluate : "ahead", allowTime : allowTime};
         else if (0<=allowTime && allowTime<MAX_AHEAD) return {evaluate: "tight", allowTime:allowTime}; 
@@ -164,7 +164,7 @@ export function evaluateArrival(arrive : ArrivalEstimate): EvaluateResult | null
 
 export function makeList(now: EpochSeconds, deadline: EpochSeconds, totalRoutes : TotalRoute[]): FinalResult{
     const candidates :RouteOption[] = [];
-    let fastestArrivalAt : EpochSeconds | null= null;
+    let fastest : RouteOption | null= null;
 
 
     for (const troute of totalRoutes){
@@ -172,18 +172,28 @@ export function makeList(now: EpochSeconds, deadline: EpochSeconds, totalRoutes 
         
         if(!estimate.ok) continue; // 차를 못 타면 바로 stop, 다음 경로로 넘어간다. 
         // 가장 빠른 도착 기억해두기 (도착 불가 화면에서 사용 )
-        if(fastestArrivalAt == null || estimate.arrivalAt <fastestArrivalAt) fastestArrivalAt = estimate.arrivalAt;
+        // 가장 빨리 도착하는 경로 (도착 불가 화면에서 "계속 안내"용)
+        if (fastest === null || estimate.arrivalAt < fastest.arrivalAt) {
+            fastest = {
+                route: troute,
+                arrivalAt: estimate.arrivalAt,
+                speedUps: estimate.speedUps,
+                // 💡 5분 넘게 늦어서 evaluateArrival은 null을 줘요 → "늦음"으로 직접 표시
+                evaluation: { evaluate: "delayed", allowTime: estimate.slack },
+            };
+        }
 
         const evaluation = evaluateArrival(estimate);
-        if(evaluation === null) continue;
-        candidates.push({route: troute, arrivalAt:estimate.arrivalAt, speedUps:estimate.speedUps, evaluation});
+        if (evaluation === null) continue;
+        candidates.push({ route: troute, arrivalAt: estimate.arrivalAt, speedUps: estimate.speedUps, evaluation });
     }
 
     if(candidates.length === 0){
         return{
-            ok:false,
-            fastestArrivalAt,
-            lateBy : fastestArrivalAt === null ? null : fastestArrivalAt-deadline
+            ok: false,
+            fastestArrivalAt: fastest?.arrivalAt ?? null,
+            lateBy: fastest === null ? null : fastest.arrivalAt - deadline,
+            fastestOption: fastest,
         }
     }
 

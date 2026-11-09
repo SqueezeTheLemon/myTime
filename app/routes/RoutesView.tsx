@@ -86,7 +86,17 @@ function RoutesScreen({ apiQuery, destName, deadline, listQuery, banner }: Scree
 
     // 제시간에 갈 경로가 없으면 목록 대신 "제시간 도착 불가" 화면
     if (load.status === "done" && !load.result.ok) {
-        return <LateView fastestArrivalAt={load.result.fastestArrivalAt} lateBy={load.result.lateBy} />;
+        const { fastestArrivalAt, lateBy, fastestOption } = load.result;
+        return (
+            <LateView
+                fastestArrivalAt={fastestArrivalAt}
+                lateBy={lateBy}
+                fastestOption={fastestOption}
+                deadline={deadline}
+                destName={destName}
+                listQuery={listQuery}
+            />
+        );
     }
 
     return (

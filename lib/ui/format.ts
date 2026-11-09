@@ -63,9 +63,15 @@ export function segmentName(seg: RouteSegment): string {
         case "walk":
             return "도보";
         case "bus":
-            return `${seg.busNumber}번 버스`;
+            return busName(seg.busNumber);
         case "subway":
             // 카카오가 "4호선"처럼 주면 앞에 "지하철"을 붙이고, "신분당선"처럼 이름이 있으면 그대로 써요.
             return /^\d+호선$/.test(seg.lineNumber) ? `지하철 ${seg.lineNumber}` : seg.lineNumber;
     }
+}
+
+// 💡 카카오는 "N75(심야)", "8100(급행)"처럼 괄호 접미사를 붙여 줘요 → "N75번 심야버스"
+export function busName(busNumber: string): string {
+    const m = /^(.+?)\((.+)\)$/.exec(busNumber.trim());
+    return m ? `${m[1]}번 ${m[2]}버스` : `${busNumber}번 버스`;
 }

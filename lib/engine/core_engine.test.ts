@@ -126,14 +126,27 @@ describe("makeList", () => {
         if (r.ok) expect(r.options.map((o) => o.arrivalAt)).toEqual([NOW + 990, NOW + 1020, NOW + 1080]);
     });
 
-    it("전부 5분 넘게 늦으면 도착 불가 + 가장 빠른 도착을 알려줘요", () => {
+    it("전부 5분 넘게 늦으면 도착 불가 + 가장 빠른 경로를 같이 줘요", () => {
         // 데드라인 10분 → 마지막 도보까지 빨리 걸어도 990초 도착, 390초(6분 30초) 지각
-        const r = makeList(NOW, NOW + 600, [route(240)]);
-        expect(r).toEqual({ ok: false, fastestArrivalAt: NOW + 990, lateBy: 390 });
+        const routeB = route(240);
+        const r = makeList(NOW, NOW + 600, [routeB]);
+        expect(r).toMatchObject({ ok: false, fastestArrivalAt: NOW + 990, lateBy: 390 });
+        if (r.ok) return;
+        expect(r.fastestOption?.route).toBe(routeB);
+        expect(r.fastestOption?.evaluation).toEqual({ evaluate: "delayed", allowTime: -390 });
     });
 
-    it("탈 수 있는 경로가 아예 없으면 도착 시각도 null", () => {
-        expect(makeList(NOW, deadline, [route(180)])).toEqual({ ok: false, fastestArrivalAt: null, lateBy: null });
-        expect(makeList(NOW, deadline, [])).toEqual({ ok: false, fastestArrivalAt: null, lateBy: null });
+    it("늦는 경로가 여러 개면 가장 빨리 도착하는 경로를 골라요", () => {
+        // 도착: 1080(300) · 990(210) → route(210)이 뽑혀요
+        const fast = route(210);
+        const r = makeList(NOW, NOW + 600, [route(300), fast]);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.fastestOption?.route).toBe(fast);
+    });
+
+    it("탈 수 있는 경로가 아예 없으면 도착 시각·경로도 null", () => {
+        const empty = { ok: false, fastestArrivalAt: null, lateBy: null, fastestOption: null };
+        expect(makeList(NOW, deadline, [route(180)])).toEqual(empty);
+        expect(makeList(NOW, deadline, [])).toEqual(empty);
     });
 });

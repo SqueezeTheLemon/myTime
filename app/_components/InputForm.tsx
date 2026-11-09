@@ -201,7 +201,7 @@ export default function InputForm() {
                     (search.places.length === 0 ? (
                         <p className="text-[13px] text-muted">검색 결과가 없어요. 다른 이름으로 찾아보세요.</p>
                     ) : (
-                        <ul className="flex flex-col border-t border-chip">
+                        <ul className="flex max-h-[264px] flex-col overflow-y-auto overscroll-contain border-t border-chip" aria-label="도착지 후보">
                             {search.places.map((place) => (
                                 <li key={place.id}>
                                     <button
