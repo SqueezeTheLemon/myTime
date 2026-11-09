@@ -3,7 +3,7 @@
 // 💡 렌더 중에 Date.now()를 바로 부르면 서버 HTML과 브라우저 값이 달라져요(하이드레이션 경고).
 //    useSyncExternalStore는 서버에선 null, 브라우저에선 실제 시각을 주니까 그 문제가 없어요.
 import { useSyncExternalStore } from "react";
-import type { EpochSeconds } from "../../lib/core_engine";
+import type { EpochSeconds } from "../../lib/engine/core_engine";
 
 const TICK_SECONDS = 5;
 

@@ -2,8 +2,8 @@
 // 예: [2:29 도착] [정시 도착 가능]            여유 1분
 //     [도보 3분 → 2분] › [740번 버스 11분] › [도보 2분]
 import { Fragment } from "react";
-import type { RouteOption } from "../../lib/core_engine";
-import { EVALUATION_BADGE, formatAllowance, formatDuration, formatLimit, segmentName, shortClock } from "../../lib/format";
+import type { RouteOption } from "../../lib/engine/core_engine";
+import { EVALUATION_BADGE, formatAllowance, formatDuration, formatLimit, segmentName, shortClock } from "../../lib/ui/format";
 import { ChevronRight } from "../_components/icons";
 
 const BADGE_CLASS = {

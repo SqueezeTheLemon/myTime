@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { kakaoRouteToTotalRoute, kakaoToTotalRoutes, placeholderEta } from "./kakao_convert";
-import { makeList, BOARDING_BUFFER } from "./core_engine";
+import { kakaoRouteToTotalRoute, kakaoToTotalRoutes, placeholderEta } from "./transit_convert";
+import { makeList, BOARDING_BUFFER } from "../engine/core_engine";
 import { okResponse, noResultResponse } from "./fixtures/kakao_sample";
-import { KakaoRoute } from "./kakao_types";
+import { KakaoRoute } from "./transit_types";
 
 // 🕑 엔진 테스트처럼 "지금"을 고정해요 → 네트워크도 시계도 필요 없어요
 const NOW = 1_800_000_000;

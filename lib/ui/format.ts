@@ -1,6 +1,6 @@
 // 🖍️ 엔진 결과(초 단위 숫자)를 화면 문구로 바꾸는 순수 함수들이에요.
 // 💡 엔진 주석의 약속대로 Date는 여기 "출구"에서만 써요.
-import { EpochSeconds, EvaluateResult, RouteSegment, Seconds } from "./core_engine";
+import { EpochSeconds, EvaluateResult, RouteSegment, Seconds } from "../engine/core_engine";
 
 // 1700000000 → "오후 2:30"
 export function formatClock(epoch: EpochSeconds): string {

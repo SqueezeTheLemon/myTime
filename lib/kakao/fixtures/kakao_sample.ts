@@ -1,7 +1,7 @@
 // 🧪 테스트용 카카오 응답 샘플이에요 (서울역 → 강남역 관찰 결과를 보고 손으로 줄여 만든 것)
 // 💡 실제 응답을 통째로 저장하지 않고, 필요한 필드만 남겨 직접 만들었어요.
 //    JSON 대신 .ts로 두면 타입이 틀렸을 때 바로 빨간 줄이 떠요!
-import { KakaoResponse, KakaoStep } from "../kakao_types";
+import { KakaoResponse, KakaoStep } from "../transit_types";
 
 // step을 짧게 만드는 도우미 (guidance, path처럼 엔진이 안 쓰는 건 대충 채워요)
 const walk = (time: number): KakaoStep => ({

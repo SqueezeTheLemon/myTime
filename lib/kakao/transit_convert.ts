@@ -1,6 +1,6 @@
 // 카카오 응답 -> 엔진이 이해할 수 있는 Total Route로 바꾸기
-import { BOARDING_BUFFER, EpochSeconds, RouteSegment, TotalRoute } from "./core_engine";
-import { KakaoResponse, KakaoRoute, KakaoStep } from "./kakao_types";
+import { BOARDING_BUFFER, EpochSeconds, RouteSegment, TotalRoute } from "../engine/core_engine";
+import { KakaoResponse, KakaoRoute, KakaoStep } from "./transit_types";
 
 // 일단, 정류장에 도착하고 딱 탑승 여유(boarding buffer)만큼 지나면 차가 온다고 가정 - 차를 놓치는 경우의 수는 나중에 생각 
 export function placeholderEta(arrivalAtStop : EpochSeconds): EpochSeconds{

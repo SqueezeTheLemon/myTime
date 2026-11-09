@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import type { FinalResult } from "../../lib/core_engine";
-import { formatClock, formatDuration, formatRemaining } from "../../lib/format";
+import type { FinalResult } from "../../lib/engine/core_engine";
+import { formatClock, formatDuration, formatRemaining } from "../../lib/ui/format";
 import { useNow } from "../_components/use_now";
 import { BackIcon } from "../_components/icons";
 import RouteCard from "./RouteCard";

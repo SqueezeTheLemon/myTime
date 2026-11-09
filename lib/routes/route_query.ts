@@ -1,6 +1,8 @@
-// 주소창의 값을 검사하고 -> 숫자로 바꾼다. 
+// 주소창의 값(쿼리)을 검사하고 -> 숫자로 바꾼다. 
+// (서울 내 범위가 아니거나 입력값에 문제가 있다면 error)
 
-import { EpochSeconds } from "./core_engine";
+import { EpochSeconds } from "../engine/core_engine";
+import { inSeoul } from "../seoul";
 
 export interface Point {
     x: number; // 경도 (longitude)
@@ -17,14 +19,7 @@ export type ParseResult =
     | { ok: true; query: RouteQuery }
     | { ok: false; message: string };
 
-// 서울 근처만 입력을 받는다. 
-const SEOUL = { minX: 126.7, maxX: 127.3, minY: 37.4, maxY: 37.75 };
-
-function inSeoul(p: Point): boolean {
-    return p.x >= SEOUL.minX && p.x <= SEOUL.maxX && p.y >= SEOUL.minY && p.y <= SEOUL.maxY;
-}
-
-function toNumber(value: string | null): number | null {
+export function toNumber(value: string | null): number | null {
     if (value === null || value.trim() === "") return null;
     const n = Number(value);
     return Number.isFinite(n) ? n : null;

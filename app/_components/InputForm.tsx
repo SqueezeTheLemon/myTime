@@ -2,10 +2,10 @@
 // 📝 1. 직접 입력 화면 (목업 Main). 출발지(GPS 1회) + 도착지(장소 검색) + 데드라인 → /routes로 이동
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { Point } from "../../lib/route_query";
-import type { Place, PlacesResponse } from "../../lib/place_types";
-import { dayLabel, deadlineFromTime, minutesLater, nextOClock, toTimeValue } from "../../lib/deadline";
-import { formatClock, formatRemaining } from "../../lib/format";
+import type { Point } from "../../lib/routes/route_query";
+import type { Place, PlacesResponse } from "../../lib/places/place_types";
+import { dayLabel, deadlineFromTime, minutesLater, nextOClock, toTimeValue } from "../../lib/ui/deadline";
+import { formatClock, formatRemaining } from "../../lib/ui/format";
 import { useNow } from "./use_now";
 import { CheckIcon, LocateIcon, Logo, SearchIcon } from "./icons";
 

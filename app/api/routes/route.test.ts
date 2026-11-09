@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GET } from "./route";
-import { okResponse, noResultResponse } from "../../../lib/fixtures/kakao_sample";
+import { okResponse, noResultResponse } from "../../../lib/kakao/fixtures/kakao_sample";
 
 // 🕑 Date.now()를 고정해요 → route.ts의 now가 항상 같은 값이 돼요
 const NOW = 1_800_000_000;
