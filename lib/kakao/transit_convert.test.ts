@@ -6,10 +6,12 @@ import {
     kakaoToTotalRoutes,
     placeholderEta,
     WALK_SPEED,
+    estimatedEta,
+    ridesByPriority,
 } from "./transit_convert";
 import { makeList, BOARDING_BUFFER, fastLimit } from "../engine/core_engine";
 import { okResponse, noResultResponse, realShapeResponse, REAL_START, REAL_END } from "./fixtures/kakao_sample";
-import { KakaoRoute } from "./transit_types";
+import { KakaoRoute, KakaoStep } from "./transit_types";
 
 // 🕑 엔진 테스트처럼 "지금"을 고정해요 → 네트워크도 시계도 필요 없어요
 const NOW = 1_800_000_000;
@@ -155,8 +157,8 @@ describe("실시간 eta 꽂기 (EtaLookup)", () => {
 
     it("빠른 걸음 기준 가장 이른 시각을 넘겨주고, 모르면 placeholder로 대신한다", () => {
         const asked: number[] = [];
-        const etaFor = (_step: unknown, earliest: number) => {
-            asked.push(earliest);
+        const etaFor = (_step: unknown, at: { earliest: number }) => {
+            asked.push(at.earliest);
             return asked.length === 1 ? { eta: NOW + 400 } : null; // 첫 차만 실시간, 환승은 모름
         };
         const total = kakaoRouteToTotalRoute(route, NOW, undefined, etaFor)!;
@@ -182,5 +184,58 @@ describe("실시간이 고른 차 이름", () => {
         const busRoute = okResponse.routes![1]; // 104 / 463 / N16(심야) 중 하나
         const total = kakaoRouteToTotalRoute(busRoute, NOW, undefined, () => ({ eta: NOW + 600, vehicle: "463" }))!;
         expect(total.find((s) => s.type === "bus")).toMatchObject({ busNumber: "463", eta: NOW + 600 });
+    });
+});
+
+describe("환승 차에도 실시간·어림 적용", () => {
+    // 도보 100 → 지하철A 300 → 환승 도보 200 → 지하철B 600
+    const step = (type: "WALKING" | "SUBWAY", time: number, name = ""): KakaoStep => ({
+        properties: { guidance: "", type, distance: 0, time, stops: [], vehicles: name ? [{ name, type: "일반" }] : [] },
+        path: { points: [] },
+    });
+    const transferRoute: KakaoRoute = {
+        properties: { type: "SUBWAY", totalDistance: 0, totalTime: 0, transfers: 1 },
+        steps: [step("WALKING", 100), step("SUBWAY", 300, "A"), step("WALKING", 200), step("SUBWAY", 600, "B")],
+    };
+    const deadline = NOW + 3 * 3600;
+
+    it("환승 도보를 빨리 걸어야만 탈 수 있는 실시간 열차면 환승 도보에 speedUp이 생긴다", () => {
+        const seen: { clock: number; earliest: number }[] = [];
+        const etaFor = (_s: KakaoStep, at: { clock: number; earliest: number }) => {
+            seen.push(at);
+            // A는 바로 탈 수 있게, B는 "빠른 걸음 도착 + 1분"에 오는 실시간 열차
+            return seen.length === 1 ? { eta: NOW + 200 } : { eta: at.earliest + BOARDING_BUFFER };
+        };
+        const total = kakaoRouteToTotalRoute(transferRoute, NOW, undefined, etaFor)!;
+
+        // 앞 차 eta(200) + 탑승 300 = 500에서 환승 도보 시작 → 보통 700, 빠른 걸음 650
+        expect(seen[1]).toEqual({ clock: NOW + 700, earliest: NOW + 500 + fastLimit(200) });
+        const result = makeList(NOW, deadline, [total]);
+        expect(result.ok && result.options[0].speedUps).toEqual([
+            { segmentIndex: 2, normalTime: 200, timeLimit: fastLimit(200) },
+        ]);
+    });
+
+    it("어림값(보통 걸음 기준 + 배차/2)으로 고른 차에는 빨리 걷기 안내가 없다", () => {
+        let calls = 0;
+        const etaFor = (_s: KakaoStep, at: { clock: number }) =>
+            ++calls === 1 ? { eta: NOW + 200 } : { eta: estimatedEta(at.clock, 600), estimated: true };
+        const total = kakaoRouteToTotalRoute(transferRoute, NOW, undefined, etaFor)!;
+
+        expect(total[3]).toMatchObject({ eta: NOW + 700 + 300 }); // 배차 10분 → 평균 5분 대기
+        const result = makeList(NOW, deadline, [total]);
+        expect(result.ok && result.options[0].speedUps).toEqual([]);
+    });
+
+    it("배차가 짧아도 어림 대기는 최소 탑승 여유(1분)", () => {
+        expect(estimatedEta(NOW, 60)).toBe(NOW + BOARDING_BUFFER);
+    });
+});
+
+describe("ridesByPriority — 조회 순서", () => {
+    it("모든 경로의 첫 차를 먼저, 환승 차는 그 뒤에", () => {
+        const names = ridesByPriority(okResponse).map((s) => s.properties.vehicles[0].name);
+        // 경로1: 4호선 → 2호선, 경로2: 104 → 첫 차(4호선, 104) 다음에 환승(2호선)
+        expect(names).toEqual(["4호선", "104", "2호선"]);
     });
 });

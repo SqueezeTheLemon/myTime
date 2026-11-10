@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     // 4) 실시간 도착 정보: 지하철·버스를 동시에 조회해요. 실패해도 placeholder로 계속 가요
     const [subway, bus] = await Promise.all([loadSubwayLookup(kakao.data, now), loadBusLookup(kakao.data, now)]);
     // 💡 둘 다 자기 교통수단이 아니면 null을 줘서, 그냥 앞에서부터 물어보면 돼요
-    const etaFor: EtaLookup = (step, earliest) => subway(step, earliest) ?? bus(step, earliest);
+    const etaFor: EtaLookup = (step, at) => subway(step, at) ?? bus(step, at);
 
     // 5) 변환 → 엔진. 출발지·목적지를 같이 넘겨야 처음·마지막 도보가 붙어요
     const routes = kakaoToTotalRoutes(kakao.data, now, { start, end }, etaFor);

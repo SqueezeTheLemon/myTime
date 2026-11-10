@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeStation, parseKst, pickSubwayEta, toArrival, toArrivals, STALE_LIMIT } from "./subway_arrivals";
+import { normalizeStation, parseKst, pickSubway, pickSubwayEta, toArrival, toArrivals, STALE_LIMIT } from "./subway_arrivals";
 import { gangnamRows, SAMPLE_NOW, seoulRows } from "./fixtures/subway_sample";
 import { BOARDING_BUFFER } from "../engine/core_engine";
 
@@ -88,5 +88,23 @@ describe("pickSubwayEta — 탈 수 있는 첫 열차 고르기", () => {
         const recv = parseKst("2026-11-09 16:45:30")!;
         expect(pickSubwayEta(gangnam, "2호선", ["강남", "역삼", "선릉"], NOW)).toBe(recv + 90);
         expect(pickSubwayEta(gangnam, "2호선", ["강남", "교대(법원.검찰청)"], NOW)).toBe(recv + 140);
+    });
+});
+
+describe("pickSubway — 실시간 → 배차 어림 → placeholder", () => {
+    const arrivals = toArrivals(seoulRows, NOW);
+    const toSookmyung = ["서울역", "숙대입구(서울시교육청)", "삼각지(전쟁기념관)"];
+
+    it("목록 안이면 빠른 걸음(earliest) 기준 실시간 열차", () => {
+        expect(pickSubway(arrivals, "4호선", toSookmyung, { clock: NOW + 100, earliest: NOW + 60 })).toEqual({ eta: NOW + 120 });
+    });
+
+    it("목록 범위 밖에 닿으면 보통 걸음(clock) + 배차/2로 어림", () => {
+        const at = { clock: NOW + 1200, earliest: NOW + 1100 };
+        expect(pickSubway(arrivals, "4호선", toSookmyung, at)).toEqual({ eta: NOW + 1200 + 180, estimated: true }); // 4호선 6분 배차
+    });
+
+    it("이 방향 열차가 목록에 없으면 null (→ placeholder)", () => {
+        expect(pickSubway(arrivals, "4호선", ["서울역", "명동"], { clock: NOW + 1200, earliest: NOW + 1200 })).toBeNull();
     });
 });

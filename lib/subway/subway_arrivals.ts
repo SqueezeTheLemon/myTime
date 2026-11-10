@@ -4,6 +4,7 @@
 //   응답 줄(SubwayArrivalRow) ──toArrival──▶ TrainArrival { 노선, 방면, 종착, 급행, eta }
 //   카카오 지하철 구간 + 가장 빨리 역에 닿는 시각 ──pickSubwayEta──▶ 탈 수 있는 첫 열차의 eta
 import { BOARDING_BUFFER, EpochSeconds, Seconds } from "../engine/core_engine";
+import { ArrivalAt, EtaPick, estimatedEta } from "../kakao/transit_convert";
 import { SubwayArrivalRow } from "./subway_types";
 
 // 카카오 노선 이름 → 서울 API subwayId
@@ -116,17 +117,21 @@ export function toArrivals(rows: SubwayArrivalRow[], now: EpochSeconds): TrainAr
     return result.sort((a, b) => a.eta - b.eta);
 }
 
-// 카카오 지하철 구간에 맞는 열차 중, 시간 안에 탈 수 있는 첫 열차의 eta
+// 📏 노선별 기본 배차 가정값 (초). 실시간 목록 범위(열차 2대 ≈ 10분) 밖에 타는 열차를 어림할 때 써요
+// 💡 낮 시간 대략값이에요. 출퇴근엔 더 짧고 밤엔 더 길어요. 실사용 후 조정할 여지가 있어요
+export const SUBWAY_HEADWAYS: Record<string, Seconds> = {
+    "1001": 480, "1002": 300, "1003": 360, "1004": 360, "1005": 360,
+    "1006": 480, "1007": 360, "1008": 420, "1009": 360,
+    "1061": 900, "1063": 900, "1065": 720, "1067": 1200,
+    "1075": 480, "1077": 360, "1081": 1200, "1092": 420, "1093": 1200, "1094": 360, "1032": 600,
+};
+export const DEFAULT_SUBWAY_HEADWAY: Seconds = 480;
+
+// 카카오 지하철 구간과 같은 노선·같은 방향으로 가는 열차들 (eta 순)
 //   lineName: 카카오 vehicles[].name ("4호선")
 //   stops:    카카오 stops 이름 목록 (첫 번째 = 타는 역, 두 번째 = 다음 역 → 방향 판별)
-//   earliest: 빠른 걸음으로 이 역에 닿을 수 있는 가장 이른 시각
-// 맞는 열차가 없으면 null → 부르는 쪽에서 placeholder로 대신해요
-export function pickSubwayEta(
-    arrivals: TrainArrival[],
-    lineName: string,
-    stops: string[],
-    earliest: EpochSeconds,
-): EpochSeconds | null {
+// 노선·방향을 판별할 수 없으면 null
+export function matchingTrains(arrivals: TrainArrival[], lineName: string, stops: string[]): TrainArrival[] | null {
     const lineId = SUBWAY_LINE_IDS[lineName];
     if (!lineId || stops.length < 2) return null;
 
@@ -135,13 +140,39 @@ export function pickSubwayEta(
     // 내릴 역 전에 끝나는 열차를 거르려고: 탄 역 ~ 내릴 역 직전까지
     const beforeGetOff = new Set(route.slice(0, -1));
 
-    for (const a of arrivals) {
-        if (a.lineId !== lineId) continue;
-        if (a.heading !== next) continue; // 반대 방향
-        // 급행은 내릴 역에 안 설 수도 있어서 일단 빼요 (놓치는 쪽이 아니라 늦게 잡는 쪽이라 안전)
-        if (a.express) continue;
-        if (beforeGetOff.has(a.terminus)) continue; // 중간에 끝나는 열차
-        if (a.eta - BOARDING_BUFFER >= earliest) return a.eta; // 목록이 eta 순이라 처음 맞는 게 첫 열차
-    }
-    return null;
+    return arrivals.filter(
+        (a) =>
+            a.lineId === lineId &&
+            a.heading === next && // 반대 방향 제외
+            // 급행은 내릴 역에 안 설 수도 있어서 일단 빼요 (놓치는 쪽이 아니라 늦게 잡는 쪽이라 안전)
+            !a.express &&
+            !beforeGetOff.has(a.terminus), // 중간에 끝나는 열차 제외
+    );
+}
+
+// 시간 안에 탈 수 있는 첫 열차의 eta (실시간 목록 안에서만). 없으면 null
+//   earliest: 빠른 걸음으로 이 역에 닿을 수 있는 가장 이른 시각
+export function pickSubwayEta(
+    arrivals: TrainArrival[],
+    lineName: string,
+    stops: string[],
+    earliest: EpochSeconds,
+): EpochSeconds | null {
+    const trains = matchingTrains(arrivals, lineName, stops) ?? [];
+    // 목록이 eta 순이라 처음 맞는 게 첫 열차
+    return trains.find((a) => a.eta - BOARDING_BUFFER >= earliest)?.eta ?? null;
+}
+
+// 실시간 → 범위 밖이면 배차 어림 → 못 맞추면 null(placeholder)
+//   at.earliest(빠른 걸음)로 실시간 열차를 고르고, 어림값은 at.clock(보통 걸음) 기준이에요
+export function pickSubway(arrivals: TrainArrival[], lineName: string, stops: string[], at: ArrivalAt): EtaPick | null {
+    const trains = matchingTrains(arrivals, lineName, stops);
+    // 이 방향 열차가 목록에 하나도 없으면 정말 맞는 역인지 확신할 수 없어요 → placeholder
+    if (!trains || trains.length === 0) return null;
+
+    const real = trains.find((a) => a.eta - BOARDING_BUFFER >= at.earliest);
+    if (real) return { eta: real.eta };
+
+    const headway = SUBWAY_HEADWAYS[SUBWAY_LINE_IDS[lineName]] ?? DEFAULT_SUBWAY_HEADWAY;
+    return { eta: estimatedEta(at.clock, headway), estimated: true };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { busEtasAtStop, busRouteIdFor, pickBusEta, rowEtas } from "./bus_arrivals";
+import { busEtasAtStop, busRouteIdFor, pickBus, pickBusEta, rowEtas } from "./bus_arrivals";
 import { BUS_SAMPLE_NOW, kakaoStops402, rows402 } from "./fixtures/bus_sample";
 import { BOARDING_BUFFER } from "../engine/core_engine";
 import { STALE_LIMIT } from "../subway/subway_arrivals";
@@ -72,5 +72,22 @@ describe("pickBusEta — 후보 버스 중 탈 수 있는 가장 빠른 것", ()
 
     it("조회 안 한 노선뿐이면 null", () => {
         expect(pickBusEta(byRoute, ["9300"], kakaoStops402, NOW, NOW)).toBeNull();
+    });
+});
+
+describe("pickBus — 실시간 → 배차 어림 → placeholder", () => {
+    const byRoute = new Map([[ID_402, rows402]]);
+
+    it("목록 안이면 실시간 버스", () => {
+        expect(pickBus(byRoute, ["402"], kakaoStops402, { clock: NOW, earliest: NOW }, NOW)).toEqual({ eta: NOW + 431, vehicle: "402" });
+    });
+
+    it("두 대 다 놓치는 시각이면 표의 배차 간격(402번 9분)으로 어림", () => {
+        const at = { clock: NOW + 1500, earliest: NOW + 1400 };
+        expect(pickBus(byRoute, ["402"], kakaoStops402, at, NOW)).toEqual({ eta: NOW + 1500 + 270, vehicle: "402", estimated: true });
+    });
+
+    it("정류장을 못 맞추면 null (→ placeholder)", () => {
+        expect(pickBus(byRoute, ["402"], ["없는정류장", "어딘가"], { clock: NOW, earliest: NOW }, NOW)).toBeNull();
     });
 });

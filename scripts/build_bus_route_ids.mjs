@@ -1,4 +1,4 @@
-// 🚌 버스 번호 → 서울 busRouteId 표를 만들어 lib/bus/bus_route_ids.json에 저장해요.
+// 🚌 버스 번호 → 서울 busRouteId(+배차 간격) 표를 만들어 lib/bus/bus_route_ids.json에 저장해요.
 // 실행: node scripts/build_bus_route_ids.mjs
 //
 // 💡 왜 미리 만들어 두나요?
@@ -24,11 +24,13 @@ if (!res.ok) throw new Error(`노선 목록 요청 실패: HTTP ${res.status}`);
 const data = await res.json();
 if (data.msgHeader?.headerCd !== "0") throw new Error(`노선 목록 오류: ${data.msgHeader?.headerMsg}`);
 
+// { "402": { id: "100100063", term: 9 } } — term은 배차 간격(분). 실시간 범위 밖 어림에 써요
 const table = {};
 const duplicated = new Set();
-for (const { busRouteNm, busRouteId } of data.msgBody.itemList ?? []) {
-    if (busRouteNm in table && table[busRouteNm] !== busRouteId) duplicated.add(busRouteNm);
-    table[busRouteNm] = busRouteId;
+for (const { busRouteNm, busRouteId, term } of data.msgBody.itemList ?? []) {
+    if (busRouteNm in table && table[busRouteNm].id !== busRouteId) duplicated.add(busRouteNm);
+    const minutes = Number(term);
+    table[busRouteNm] = { id: busRouteId, term: Number.isFinite(minutes) && minutes > 0 ? minutes : null };
 }
 // 같은 번호가 두 노선이면 어느 쪽인지 알 수 없으니 빼요 (→ 그 버스는 실시간 없이 placeholder)
 for (const name of duplicated) delete table[name];

@@ -57,15 +57,36 @@ export function accessWalkTimes(route: KakaoRoute, start: Point, end: Point): { 
 }
 
 // ─────────────────────────────────────────────────────────────
-// 🚇 실시간 eta 꽂는 자리 (6단계)
+// 🚇 실시간 eta 꽂는 자리 (6단계) — 첫 차든 환승 차든 모든 차에 똑같이 물어봐요
 // 변환은 계속 "순수 함수"로 두고, 실시간 데이터는 밖에서 함수로 받아요.
-//   earliest = 빠른 걸음으로 이 정류장에 닿을 수 있는 가장 이른 시각
-//   → 그 시각 + 탑승 여유 안에 오는 첫 차의 eta, 모르면 null
-// null이면 지금까지처럼 placeholderEta로 대신해요.
+//   at.clock    = 보통 걸음으로 이 정류장에 닿는 시각
+//   at.earliest = 빠른 걸음으로 닿을 수 있는 가장 이른 시각
+// 조회 함수가 돌려주는 것
+//   - 실시간 목록에 탈 수 있는 차가 있으면: earliest 기준 첫 차 (빨리 걸으면 탈 수 있는 앞차 포함)
+//   - 목록은 맞는데 그 시각이 목록 범위 밖이면: clock 기준 배차 어림값 (estimated: true)
+//   - 정류장·노선을 못 맞췄거나 조회 실패면: null → placeholderEta
 // vehicle: 버스처럼 후보가 여러 대일 때, 실제로 고른 차 이름 (없으면 vehicles[0])
 // ─────────────────────────────────────────────────────────────
-export type EtaPick = { eta: EpochSeconds; vehicle?: string };
-export type EtaLookup = (step: KakaoStep, earliest: EpochSeconds) => EtaPick | null;
+export type EtaPick = { eta: EpochSeconds; vehicle?: string; estimated?: boolean };
+export type ArrivalAt = { clock: EpochSeconds; earliest: EpochSeconds };
+export type EtaLookup = (step: KakaoStep, at: ArrivalAt) => EtaPick | null;
+
+// 실시간으로 조회할 차 구간들을 "중요한 순서"로: 각 경로의 첫 차 먼저, 그다음 환승 차
+// 💡 조회 상한에 걸려 잘릴 때 첫 차가 살아남게 하려고 순서를 정해 둬요
+export function ridesByPriority(res: KakaoResponse): KakaoStep[] {
+    if (res.status !== "OK") return [];
+    const rides = res.routes.map((r) => r.steps.filter((s) => s.properties.type !== "WALKING"));
+    const first = rides.flatMap((r) => r.slice(0, 1));
+    const transfers = rides.flatMap((r) => r.slice(1));
+    return [...first, ...transfers];
+}
+
+// 배차 간격으로 어림한 eta: 보통 걸음으로 도착한 뒤 평균 "배차/2"를 기다린다고 봐요
+// 💡 탑승 여유(1분)보다 짧게 잡으면 엔진이 "차를 놓쳤다"고 판단하니까 최소 1분은 둬요.
+//    그러면 보통 걸음으로 딱 맞게 되어, 어림값에는 "빨리 걸으세요"가 뜨지 않아요 (틀릴 수 있어서 보수적으로)
+export function estimatedEta(clock: EpochSeconds, headway: Seconds): EpochSeconds {
+    return clock + Math.max(BOARDING_BUFFER, Math.round(headway / 2));
+}
 
 // step 하나를 core engine 구간 하나로 변환
 //   clock:    보통 걸음으로 이 step을 시작하는 시각
@@ -82,7 +103,7 @@ function toSegment(step : KakaoStep, clock:EpochSeconds, earliest: EpochSeconds,
             if(!first) return null; // 탈 차 정보가 없으면 판정 x
 
             // 💡 실시간 → 없으면 placeholder 순서
-            const pick = etaFor?.(step, earliest) ?? null;
+            const pick = etaFor?.(step, { clock, earliest }) ?? null;
             const eta = pick?.eta ?? placeholderEta(clock);
             const name = pick?.vehicle ?? first.name;
             return p.type === "BUS"
