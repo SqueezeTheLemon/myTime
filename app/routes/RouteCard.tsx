@@ -3,7 +3,7 @@
 //     [도보 3분 → 2분] › [740번 버스 11분] › [도보 2분]
 import { Fragment } from "react";
 import type { RouteOption } from "../../lib/engine/core_engine";
-import { EVALUATION_BADGE, formatAllowance, formatDuration, formatLimit, segmentName, shortClock } from "../../lib/ui/format";
+import { EVALUATION_BADGE, formatAllowance, formatDuration, formatSpeedUp, segmentName, shortClock } from "../../lib/ui/format";
 import { ChevronRight } from "../_components/icons";
 
 const BADGE_CLASS = {
@@ -59,7 +59,8 @@ export default function RouteCard({ option, selected, onSelect }: Props) {
                             {limit !== undefined ? (
                                 // 빨리 걸어야 하는 도보: 노란 칩 + "원래 → 제한"
                                 <span className="rounded-[10px] bg-accent px-2.5 py-1.5 text-sm font-bold">
-                                    {segmentName(seg)} {formatDuration(seg.time)} → <b className="font-black">{formatLimit(limit)}</b>
+                                    {segmentName(seg)} {formatSpeedUp(seg.time, limit).from} →{" "}
+                                    <b className="font-black">{formatSpeedUp(seg.time, limit).to}</b>
                                 </span>
                             ) : (
                                 <span className="rounded-[10px] bg-surface px-2.5 py-1.5 text-sm font-medium">

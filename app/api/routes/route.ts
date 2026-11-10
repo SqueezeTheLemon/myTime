@@ -1,9 +1,11 @@
-// 쿼리 검사 → 카카오 호출 → TotalRoute로 변환 → 엔진(makeList) → FinalResult 응답
+// 쿼리 검사 → 카카오 호출 → 지하철·버스 실시간 조회 → TotalRoute로 변환 → 엔진(makeList) → FinalResult 응답
 
 import { makeList } from "../../../lib/engine/core_engine";
-import { kakaoToTotalRoutes } from "../../../lib/kakao/transit_convert";
+import { EtaLookup, kakaoToTotalRoutes } from "../../../lib/kakao/transit_convert";
+import { loadBusLookup } from "../../../lib/bus/bus_realtime";
 import { fetchKakaoTransit } from "../../../lib/kakao/transit_client";
 import { parseRouteQuery } from "../../../lib/routes/route_query";
+import { loadSubwayLookup } from "../../../lib/subway/subway_realtime";
 
 // 실패 응답은 모양을 하나로 맞추고 → 화면에선 error.message만 보여준다.
 function fail(status: number, code: string, message: string) {
@@ -43,7 +45,12 @@ export async function GET(request: Request) {
         return fail(400, status.toLowerCase(), message);
     }
 
-    // 4) 변환 → 엔진. 출발지·목적지를 같이 넘겨야 처음·마지막 도보가 붙어요
-    const routes = kakaoToTotalRoutes(kakao.data, now, { start, end });
+    // 4) 실시간 도착 정보: 지하철·버스를 동시에 조회해요. 실패해도 placeholder로 계속 가요
+    const [subway, bus] = await Promise.all([loadSubwayLookup(kakao.data, now), loadBusLookup(kakao.data, now)]);
+    // 💡 둘 다 자기 교통수단이 아니면 null을 줘서, 그냥 앞에서부터 물어보면 돼요
+    const etaFor: EtaLookup = (step, earliest) => subway(step, earliest) ?? bus(step, earliest);
+
+    // 5) 변환 → 엔진. 출발지·목적지를 같이 넘겨야 처음·마지막 도보가 붙어요
+    const routes = kakaoToTotalRoutes(kakao.data, now, { start, end }, etaFor);
     return Response.json(makeList(now, deadline, routes));
 }

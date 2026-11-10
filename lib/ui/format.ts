@@ -28,9 +28,20 @@ export function formatDuration(sec: Seconds): string {
 // 빨리 걸어야 하는 "제한 시간": 30초 단위로 내림해요.
 // 💡 올리면 실제로 주어진 시간보다 길게 안내하게 돼서 차를 놓칠 수 있어요.
 export function formatLimit(sec: Seconds): string {
-    const halfMinutes = Math.floor(sec / 30);
-    const m = Math.floor(halfMinutes / 2);
-    const withHalf = halfMinutes % 2 === 1;
+    return halfMinutes(Math.floor(sec / 30));
+}
+
+// 빨리 걷기 칩: "원래 → 제한"
+// 💡 원래 시간은 30초 단위 올림, 제한은 내림이에요. 제한이 원래보다 짧으면 두 값이 절대 같게 안 나와요.
+//    (예전엔 원래를 분 반올림해서 253초 → 227초가 "4분 → 4분"처럼 보였어요)
+export function formatSpeedUp(normal: Seconds, limit: Seconds): { from: string; to: string } {
+    return { from: halfMinutes(Math.ceil(normal / 30)), to: formatLimit(limit) };
+}
+
+// 30초 칸 수 → "3분 30초" (0칸이어도 최소 "30초")
+function halfMinutes(count: number): string {
+    const m = Math.floor(count / 2);
+    const withHalf = count % 2 === 1;
     if (m === 0) return "30초";
     return withHalf ? `${m}분 30초` : `${m}분`;
 }

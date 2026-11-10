@@ -7,7 +7,7 @@ import {
     placeholderEta,
     WALK_SPEED,
 } from "./transit_convert";
-import { makeList, BOARDING_BUFFER } from "../engine/core_engine";
+import { makeList, BOARDING_BUFFER, fastLimit } from "../engine/core_engine";
 import { okResponse, noResultResponse, realShapeResponse, REAL_START, REAL_END } from "./fixtures/kakao_sample";
 import { KakaoRoute } from "./transit_types";
 
@@ -148,5 +148,39 @@ describe("변환 결과를 엔진에 넣으면", () => {
         // 경로 0: 300 + 60 + 600 + 60 + 900 + 180 = 2100초
         expect(result.options[0].arrivalAt).toBe(NOW + 2100);
         expect(result.options[0].speedUps).toEqual([]);
+    });
+});
+describe("실시간 eta 꽂기 (EtaLookup)", () => {
+    const route = okResponse.routes![0]; // 도보 300 → 4호선 600 → 2호선 900 → 도보 180
+
+    it("빠른 걸음 기준 가장 이른 시각을 넘겨주고, 모르면 placeholder로 대신한다", () => {
+        const asked: number[] = [];
+        const etaFor = (_step: unknown, earliest: number) => {
+            asked.push(earliest);
+            return asked.length === 1 ? { eta: NOW + 400 } : null; // 첫 차만 실시간, 환승은 모름
+        };
+        const total = kakaoRouteToTotalRoute(route, NOW, undefined, etaFor)!;
+
+        expect(asked[0]).toBe(NOW + fastLimit(300)); // 300초 도보를 빨리 걸으면 225초
+        expect(total[1]).toMatchObject({ type: "subway", eta: NOW + 400 });
+        // 환승 열차: 첫 차 eta + 탑승 600초 시점에 placeholder
+        expect(total[2]).toMatchObject({ type: "subway", eta: placeholderEta(NOW + 400 + 600) });
+    });
+
+    it("빨리 걸어야만 탈 수 있는 열차를 고르면 엔진이 '빨리 걸으세요'를 낸다", () => {
+        // 보통 걸음(300초)으론 못 닿고, 빠른 걸음(225초)으론 닿는 열차
+        let calls = 0;
+        const etaFor = () => (++calls === 1 ? { eta: NOW + fastLimit(300) + BOARDING_BUFFER } : null); // 환승은 placeholder
+        const total = kakaoRouteToTotalRoute(route, NOW, undefined, etaFor)!;
+        const result = makeList(NOW, NOW + 3 * 3600, [total]);
+        expect(result.ok && result.options[0].speedUps[0]).toMatchObject({ segmentIndex: 0, normalTime: 300 });
+    });
+});
+
+describe("실시간이 고른 차 이름", () => {
+    it("후보 버스 중 실시간이 고른 버스 번호로 바꿔 넣는다", () => {
+        const busRoute = okResponse.routes![1]; // 104 / 463 / N16(심야) 중 하나
+        const total = kakaoRouteToTotalRoute(busRoute, NOW, undefined, () => ({ eta: NOW + 600, vehicle: "463" }))!;
+        expect(total.find((s) => s.type === "bus")).toMatchObject({ busNumber: "463", eta: NOW + 600 });
     });
 });

@@ -1,5 +1,5 @@
 // 카카오 응답 -> 엔진이 이해할 수 있는 Total Route로 바꾸기
-import { BOARDING_BUFFER, EpochSeconds, RouteSegment, Seconds, TotalRoute } from "../engine/core_engine";
+import { BOARDING_BUFFER, EpochSeconds, fastLimit, RouteSegment, Seconds, TotalRoute } from "../engine/core_engine";
 import type { Point } from "../routes/route_query";
 import { KakaoResponse, KakaoRoute, KakaoStep } from "./transit_types";
 
@@ -56,22 +56,38 @@ export function accessWalkTimes(route: KakaoRoute, start: Point, end: Point): { 
     return { before: toTime(straightBefore), after: toTime(straightAfter) };
 }
 
+// ─────────────────────────────────────────────────────────────
+// 🚇 실시간 eta 꽂는 자리 (6단계)
+// 변환은 계속 "순수 함수"로 두고, 실시간 데이터는 밖에서 함수로 받아요.
+//   earliest = 빠른 걸음으로 이 정류장에 닿을 수 있는 가장 이른 시각
+//   → 그 시각 + 탑승 여유 안에 오는 첫 차의 eta, 모르면 null
+// null이면 지금까지처럼 placeholderEta로 대신해요.
+// vehicle: 버스처럼 후보가 여러 대일 때, 실제로 고른 차 이름 (없으면 vehicles[0])
+// ─────────────────────────────────────────────────────────────
+export type EtaPick = { eta: EpochSeconds; vehicle?: string };
+export type EtaLookup = (step: KakaoStep, earliest: EpochSeconds) => EtaPick | null;
+
 // step 하나를 core engine 구간 하나로 변환
-function toSegment(step : KakaoStep, clock:EpochSeconds): RouteSegment | null{
+//   clock:    보통 걸음으로 이 step을 시작하는 시각
+//   earliest: 빠른 걸음으로 이 step을 시작할 수 있는 가장 이른 시각
+function toSegment(step : KakaoStep, clock:EpochSeconds, earliest: EpochSeconds, etaFor?: EtaLookup): RouteSegment | null{
     const p = step.properties;
 
     switch(p.type){
         case "WALKING" : return {type : "walk", time : p.time};
         case "BUS":
         case "SUBWAY":{
-            // vehicles는 우선 리스트로 와도 하나만 탄다.
+            // vehicles는 리스트로 와도 하나만 탄다. 실시간이 고른 차가 있으면 그 차, 없으면 첫 번째
             const first = p.vehicles?.[0];
             if(!first) return null; // 탈 차 정보가 없으면 판정 x
 
-            const eta = placeholderEta(clock);
+            // 💡 실시간 → 없으면 placeholder 순서
+            const pick = etaFor?.(step, earliest) ?? null;
+            const eta = pick?.eta ?? placeholderEta(clock);
+            const name = pick?.vehicle ?? first.name;
             return p.type === "BUS"
-            ? {type : "bus", time: p.time, busNumber: first.name, eta}
-            : { type: "subway", time: p.time, lineNumber: first.name, eta };
+            ? {type : "bus", time: p.time, busNumber: name, eta}
+            : { type: "subway", time: p.time, lineNumber: name, eta };
 
         }
         default: return null // 카카오가 세 교통 수단 외에 다른 type을 가져다 두어도 터지지 않음
@@ -84,13 +100,21 @@ export function kakaoRouteToTotalRoute(
     route: KakaoRoute,
     now: EpochSeconds,
     ends?: { start: Point; end: Point },
+    etaFor?: EtaLookup,
 ): TotalRoute | null {
     if (route.steps.length === 0) return null; // 빈 경로는 의미가 없음
 
     const segments : TotalRoute = [];
     let clock = now; // 엔진처럼 시계를 앞으로 굴리며 각 차의 eta를 구한다.
+    // 💡 시계를 하나 더 굴려요: "빨리 걸으면 언제 닿나". 이걸로 고른 차가 엔진의 "빨리 걸으세요"를 만들어요
+    let fastClock = now;
     const push = (seg: RouteSegment) => {
-        clock = seg.type === "walk" ? clock + seg.time : seg.eta + seg.time;
+        if (seg.type === "walk") {
+            clock += seg.time;
+            fastClock += fastLimit(seg.time);
+        } else {
+            clock = fastClock = seg.eta + seg.time; // 차를 타면 두 시계가 같아져요
+        }
         segments.push(seg);
     };
 
@@ -100,7 +124,7 @@ export function kakaoRouteToTotalRoute(
     if (walks.before > 0) push({ type: "walk", time: walks.before });
 
     for (const step of route.steps){
-        const seg = toSegment(step, clock);
+        const seg = toSegment(step, clock, fastClock, etaFor);
         if(seg === null) return null;
         push(seg);
     }
@@ -114,12 +138,13 @@ export function kakaoToTotalRoutes(
     res: KakaoResponse,
     now: EpochSeconds,
     ends?: { start: Point; end: Point },
+    etaFor?: EtaLookup,
 ): TotalRoute[] {
     if(res.status!=="OK") return [];
     const result : TotalRoute[] = [];
 
     for(const route of res.routes){
-        const total = kakaoRouteToTotalRoute(route, now, ends);
+        const total = kakaoRouteToTotalRoute(route, now, ends, etaFor);
         if(total !== null) result.push(total);
     }
     return result;
